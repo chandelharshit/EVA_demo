@@ -5,16 +5,18 @@ import { useRouter } from 'next/navigation'
 import { useVoice } from '../../lib/hooks/useVoice'
 import type { OnboardingStep } from '../../types'
 
-// Agent metadata for UI switching
 const AGENT_META: Record<string, { name: string; color: string; icon: string; label: string }> = {
-  GREETING: { name: 'EVA',        color: '#7c6ff7', icon: 'E', label: 'Your AI assistant'       },
-  MEAL:     { name: 'MealAgent',  color: '#10b981', icon: 'M', label: 'Meal & Health Assistant'  },
-  TASK:     { name: 'TaskAgent',  color: '#f59e0b', icon: 'T', label: 'Task & Work Assistant'    },
-  MIS:      { name: 'MisAgent',   color: '#0ea5e9', icon: 'A', label: 'Alerts & Events Assistant'},
-  SUMMARY:  { name: 'EVA',        color: '#7c6ff7', icon: 'E', label: 'Your AI assistant'       },
+  GREETING: { name: 'EVA',        color: '#7c6ff7', icon: 'E', label: 'Your AI assistant'        },
+  MEAL:     { name: 'MealAgent',  color: '#10b981', icon: 'M', label: 'Meal & Health Assistant'   },
+  TASK:     { name: 'TaskAgent',  color: '#f59e0b', icon: 'T', label: 'Task & Work Assistant'     },
+  MIS:      { name: 'MisAgent',   color: '#0ea5e9', icon: 'A', label: 'Alerts & Events Assistant' },
+  SUMMARY:  { name: 'EVA',        color: '#7c6ff7', icon: 'E', label: 'Your AI assistant'        },
 }
 
-const TOTAL_QUESTIONS = 12   // 5 MEAL + 4 TASK + 3 MIS
+const TOTAL_QUESTIONS = 12
+
+const EVA_GREETING =
+  "Hi! I'm EVA 👋 I'll introduce you to my team who'll each ask you a few questions to set up your profile. Let's start with meals!"
 
 interface Message {
   id: string
@@ -25,39 +27,54 @@ interface Message {
 
 export default function OnboardingPage() {
   const router = useRouter()
-  const [step, setStep]           = useState<string>('MEAL')
-  const [messages, setMessages]   = useState<Message[]>([
-    {
-      id: '0',
-      role: 'assistant',
-      content: "Hi! I'm EVA 👋 I'll introduce you to my team who'll each ask you a few questions to set up your profile. Let's start with meals!",
-      agent: 'GREETING',
-    }
+
+  const [step, setStep]               = useState<string>('GREETING')
+  const [messages, setMessages]       = useState<Message[]>([
+    { id: '0', role: 'assistant', content: EVA_GREETING, agent: 'GREETING' },
   ])
-  const [input, setInput]         = useState('')
-  const [loading, setLoading]     = useState(false)
+  const [input, setInput]             = useState('')
+  const [loading, setLoading]         = useState(false)
   const [questionNum, setQuestionNum] = useState(0)
-  const [history, setHistory]     = useState<{ role: string; content: string }[]>([])
+  const [history, setHistory]         = useState<{ role: string; content: string }[]>([])
   const [privacyMode, setPrivacyMode] = useState(false)
 
-  const bottomRef   = useRef<HTMLDivElement>(null)
-  const inputRef    = useRef<HTMLInputElement>(null)
-  const agent       = AGENT_META[step] ?? AGENT_META.MEAL
+  const bottomRef      = useRef<HTMLDivElement>(null)
+  const inputRef       = useRef<HTMLInputElement>(null)
+  const hasInitialized = useRef(false)
 
+  // FIX: Keep a ref of current history so sendMessage always reads latest value
+  // (fixes the "f" bug where stale closure captured only first character)
+  const historyRef = useRef<{ role: string; content: string }[]>([])
+  const stepRef    = useRef<string>('GREETING')
+
+  const agent = AGENT_META[step] ?? AGENT_META.MEAL
+
+  // FIX: Voice callback uses ref so it never reads stale state
   const { voiceState, transcript, startListening, stopListening, speak, isSupported } = useVoice(
-    (text) => { setInput(text); setTimeout(() => sendMessage(text), 300) }
+    (text) => {
+      if (text.trim()) {
+        sendMessage(text)   // pass text directly, don't rely on input state
+      }
+    }
   )
 
-  // Auto-ask first question
   useEffect(() => {
-    setTimeout(() => askNextQuestion('MEAL', []), 800)
+    if (hasInitialized.current) return
+    hasInitialized.current = true
+    speak(EVA_GREETING)
+    setTimeout(() => {
+      setStep('MEAL')
+      stepRef.current = 'MEAL'
+      askNextQuestion('MEAL', [])
+    }, 2400)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Show transcript in input as user speaks
+  // Show live transcript in input while speaking (display only, not for submission)
   useEffect(() => {
     if (transcript) setInput(transcript)
   }, [transcript])
@@ -65,14 +82,12 @@ export default function OnboardingPage() {
   const askNextQuestion = async (currentStep: string, currentHistory: any[]) => {
     setLoading(true)
     try {
-      // REAL: POST /api/onboarding with step + history
-      // MOCK: simulate agent responses
       const res = await fetch('/api/onboarding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           step: currentStep,
-          message: '',
+          message: '',                      // empty = "give me the first question"
           conversationHistory: currentHistory,
         }),
       })
@@ -87,14 +102,21 @@ export default function OnboardingPage() {
 
       setMessages(prev => [...prev, newMsg])
 
-      // Auto-speak agent response
+      const updatedHistory = [...currentHistory, { role: 'assistant', content: data.response }]
+      setHistory(updatedHistory)
+      historyRef.current = updatedHistory
+
       if (voiceState !== 'listening') speak(data.response)
 
       if (data.stepComplete) {
         const nextStep = data.nextStep
         setStep(nextStep)
+        stepRef.current = nextStep
         if (nextStep !== 'DONE' && nextStep !== 'SUMMARY') {
-          setTimeout(() => askNextQuestion(nextStep, currentHistory), 600)
+          // Reset history so next agent starts with a clean slate
+          setHistory([])
+          historyRef.current = []
+          setTimeout(() => askNextQuestion(nextStep, []), 600)
         } else {
           handleOnboardingComplete()
         }
@@ -106,19 +128,24 @@ export default function OnboardingPage() {
   }
 
   const sendMessage = async (text?: string) => {
+    // FIX: Use passed text OR input state — never rely on stale closure
     const content = (text ?? input).trim()
     if (!content || loading) return
+
+    const currentStep    = stepRef.current
+    const currentHistory = historyRef.current
 
     const userMsg: Message = {
       id:      Date.now().toString(),
       role:    'user',
       content,
-      agent:   step,
+      agent:   currentStep,
     }
 
-    const newHistory = [...history, { role: 'user', content }]
+    const newHistory = [...currentHistory, { role: 'user', content }]
     setMessages(prev => [...prev, userMsg])
     setHistory(newHistory)
+    historyRef.current = newHistory
     setInput('')
     setQuestionNum(q => q + 1)
     setLoading(true)
@@ -128,8 +155,8 @@ export default function OnboardingPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          step,
-          message: content,
+          step:                currentStep,
+          message:             content,
           conversationHistory: newHistory,
         }),
       })
@@ -139,11 +166,12 @@ export default function OnboardingPage() {
         id:      (Date.now() + 1).toString(),
         role:    'assistant',
         content: data.response,
-        agent:   data.agent ?? step,
+        agent:   data.agent ?? currentStep,
       }
 
       const updatedHistory = [...newHistory, { role: 'assistant', content: data.response }]
       setHistory(updatedHistory)
+      historyRef.current = updatedHistory
       setMessages(prev => [...prev, assistantMsg])
 
       if (voiceState !== 'listening') speak(data.response)
@@ -154,7 +182,11 @@ export default function OnboardingPage() {
           handleOnboardingComplete()
         } else {
           setStep(next)
-          setTimeout(() => askNextQuestion(next, updatedHistory), 400)
+          stepRef.current = next
+          // Reset history so next agent starts fresh
+          setHistory([])
+          historyRef.current = []
+          setTimeout(() => askNextQuestion(next, []), 400)
         }
       }
     } catch (err) {
@@ -164,7 +196,6 @@ export default function OnboardingPage() {
   }
 
   const handleOnboardingComplete = () => {
-    // REAL: supabase.from('users').update({ onboarding_complete: true }).eq('id', userId)
     setTimeout(() => router.push('/chat'), 1200)
   }
 
@@ -172,13 +203,14 @@ export default function OnboardingPage() {
 
   return (
     <div style={{
-      minHeight: '100vh',
-      background: '#0a0a0f',
-      display: 'flex',
-      flexDirection: 'column',
-      fontFamily: "'Sora', 'Inter', sans-serif",
-      color: '#e2e2f0',
-    }}>
+  height: '100vh',
+  overflow: 'hidden',
+  background: '#0a0a0f',
+  display: 'flex',
+  flexDirection: 'column',
+  fontFamily: "'Sora', 'Inter', sans-serif",
+  color: '#e2e2f0',
+}}>
       {/* ── Top Bar ── */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -190,7 +222,6 @@ export default function OnboardingPage() {
           <span style={{ color: '#4a4a6a', fontSize: 14 }}>· Setting up your profile</span>
         </div>
 
-        {/* Progress dots */}
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           {progressDots.map(i => (
             <div key={i} style={{
@@ -202,7 +233,6 @@ export default function OnboardingPage() {
           ))}
         </div>
 
-        {/* Privacy toggle */}
         <button
           onClick={() => setPrivacyMode(p => !p)}
           style={{
@@ -222,14 +252,11 @@ export default function OnboardingPage() {
           background: 'rgba(255,255,255,0.02)',
           borderRight: '1px solid rgba(255,255,255,0.06)',
           display: 'flex', flexDirection: 'column', alignItems: 'center',
-          padding: '40px 20px',
-          gap: 20,
+          padding: '40px 20px', gap: 20,
         }}>
-          {/* Avatar */}
           <div style={{ position: 'relative' }}>
             <div style={{
-              position: 'absolute', inset: -16,
-              borderRadius: '50%',
+              position: 'absolute', inset: -16, borderRadius: '50%',
               background: `radial-gradient(circle, ${agent.color}33 0%, transparent 70%)`,
               animation: loading ? 'agentPulse 1.5s ease-in-out infinite' : 'none',
             }}/>
@@ -250,7 +277,6 @@ export default function OnboardingPage() {
             <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>{agent.label}</div>
           </div>
 
-          {/* Question counter */}
           <div style={{
             background: 'rgba(255,255,255,0.04)',
             border: '1px solid rgba(255,255,255,0.08)',
@@ -265,9 +291,12 @@ export default function OnboardingPage() {
         </div>
 
         {/* ── Right: Chat ── */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-          {/* Messages */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{
+  flex: 1, overflowY: 'auto', overflowX: 'hidden', minHeight: 0,
+  padding: '24px 32px',
+  display: 'flex', flexDirection: 'column', gap: 16,
+}}>
             {messages.map(msg => {
               const msgAgent = AGENT_META[msg.agent] ?? AGENT_META.MEAL
               return (
@@ -302,11 +331,30 @@ export default function OnboardingPage() {
                 </div>
               )
             })}
+
             {loading && (
               <div style={{ display: 'flex', gap: 12 }}>
-                <div style={{ width: 32, height: 32, borderRadius: '50%', background: `${agent.color}22`, border: `1px solid ${agent.color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: agent.color }}>{agent.icon}</div>
-                <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px 16px 16px 4px', padding: '14px 18px', display: 'flex', gap: 6, alignItems: 'center' }}>
-                  {[0,1,2].map(i => <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: agent.color, animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite` }}/>)}
+                <div style={{
+                  width: 32, height: 32, borderRadius: '50%',
+                  background: `${agent.color}22`, border: `1px solid ${agent.color}44`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 12, fontWeight: 700, color: agent.color,
+                }}>
+                  {agent.icon}
+                </div>
+                <div style={{
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: '16px 16px 16px 4px',
+                  padding: '14px 18px', display: 'flex', gap: 6, alignItems: 'center',
+                }}>
+                  {[0, 1, 2].map(i => (
+                    <div key={i} style={{
+                      width: 6, height: 6, borderRadius: '50%',
+                      background: agent.color,
+                      animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite`,
+                    }}/>
+                  ))}
                 </div>
               </div>
             )}
@@ -314,21 +362,15 @@ export default function OnboardingPage() {
           </div>
 
           {/* Input */}
-          <div style={{
-            padding: '16px 32px 24px',
-            borderTop: '1px solid rgba(255,255,255,0.06)',
-          }}>
+          <div style={{ padding: '16px 32px 24px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              {/* Mic button */}
               {isSupported && (
                 <button
                   onMouseDown={startListening}
                   onMouseUp={stopListening}
                   style={{
                     width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
-                    background: voiceState === 'listening'
-                      ? `${agent.color}44`
-                      : 'rgba(255,255,255,0.06)',
+                    background: voiceState === 'listening' ? `${agent.color}44` : 'rgba(255,255,255,0.06)',
                     border: `1px solid ${voiceState === 'listening' ? agent.color : 'rgba(255,255,255,0.12)'}`,
                     cursor: 'pointer', fontSize: 18,
                     animation: voiceState === 'listening' ? 'agentPulse 1s ease-in-out infinite' : 'none',
@@ -357,8 +399,11 @@ export default function OnboardingPage() {
                 disabled={!input.trim() || loading}
                 style={{
                   width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
-                  background: input.trim() ? `linear-gradient(135deg, ${agent.color}, ${agent.color}bb)` : 'rgba(255,255,255,0.04)',
-                  border: 'none', cursor: input.trim() ? 'pointer' : 'not-allowed',
+                  background: input.trim()
+                    ? `linear-gradient(135deg, ${agent.color}, ${agent.color}bb)`
+                    : 'rgba(255,255,255,0.04)',
+                  border: 'none',
+                  cursor: input.trim() ? 'pointer' : 'not-allowed',
                   fontSize: 18, transition: 'all 0.2s',
                 }}>
                 →

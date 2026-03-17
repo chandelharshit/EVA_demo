@@ -1,4 +1,5 @@
 import type { UserHealthProfile } from '../types'
+import { supabaseServer } from './supabase'
 
 // ─── PII Scrubber ─────────────────────────────────────────────────────────────
 // Called on EVERY user message before it reaches any LLM API call
@@ -109,16 +110,13 @@ export async function getValidCalendarToken(
 }
 
 // ─── Embed Text ───────────────────────────────────────────────────────────────
-// REAL: call Gemini text-embedding-004 API
-// REAL: store result in aila_memories(embedding vector(768))
+// Call Gemini text-embedding-004 API to get vector embeddings
 
 export async function embedText(text: string): Promise<number[]> {
-  // MOCK: return dummy 768-dim vector
-  console.log('[MOCK] embedText — would call Gemini embedding API')
-  return new Array(768).fill(0).map(() => Math.random())
+  if (!process.env.GOOGLE_GEMINI_API_KEY) {
+    throw new Error('GOOGLE_GEMINI_API_KEY is not set')
+  }
 
-  /*
-  REAL IMPLEMENTATION:
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${process.env.GOOGLE_GEMINI_API_KEY}`,
     {
@@ -130,40 +128,45 @@ export async function embedText(text: string): Promise<number[]> {
       }),
     }
   )
+
+  if (!response.ok) {
+    throw new Error(`Gemini API error: ${response.statusText}`)
+  }
+
   const data = await response.json()
   return data.embedding.values
-  */
 }
 
 // ─── Search Memories ──────────────────────────────────────────────────────────
-// REAL: embed query → call Supabase match_memories RPC
+// Embed query and search similar memories using pgvector
 
 export async function searchMemories(
   query: string,
   userId: string,
   limit = 5
 ) {
-  // MOCK: return static memories from mock data
-  console.log('[MOCK] searchMemories — would call Supabase pgvector RPC')
+  try {
+    const embedding = await embedText(query)
+    const { data, error } = await supabaseServer.rpc('match_memories', {
+      query_embedding: embedding,
+      match_user_id: userId,
+      match_count: limit,
+    })
 
-  const { MOCK_MEMORIES } = await import('./mockData')
-  return MOCK_MEMORIES.slice(0, limit)
+    if (error) {
+      console.error('Error searching memories:', error)
+      return []
+    }
 
-  /*
-  REAL IMPLEMENTATION:
-  const embedding = await embedText(query)
-  const { data, error } = await supabase.rpc('match_memories', {
-    query_embedding: embedding,
-    match_user_id: userId,
-    match_count: limit,
-  })
-  if (error) throw error
-  return data
-  */
+    return data || []
+  } catch (err) {
+    console.error('searchMemories error:', err)
+    return []
+  }
 }
 
 // ─── Store Memory ─────────────────────────────────────────────────────────────
-// REAL: embed content → insert into aila_memories
+// Embed content and store in Supabase with pgvector
 
 export async function storeMemory(
   userId: string,
@@ -171,18 +174,20 @@ export async function storeMemory(
   content: string,
   memoryType: string
 ) {
-  // MOCK: just log
-  console.log(`[MOCK] storeMemory: [${agent}] ${content}`)
+  try {
+    const embedding = await embedText(content)
+    const { error } = await supabaseServer.from('aila_memories').insert({
+      user_id: userId,
+      agent,
+      content,
+      embedding,
+      memory_type: memoryType,
+    })
 
-  /*
-  REAL IMPLEMENTATION:
-  const embedding = await embedText(content)
-  await supabase.from('aila_memories').insert({
-    user_id: userId,
-    agent,
-    content,
-    embedding,
-    memory_type: memoryType,
-  })
-  */
+    if (error) {
+      console.error('Error storing memory:', error)
+    }
+  } catch (err) {
+    console.error('storeMemory error:', err)
+  }
 }

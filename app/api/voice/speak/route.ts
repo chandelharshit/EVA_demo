@@ -21,10 +21,11 @@ export async function POST(req: Request) {
     const EVA_VOICE_ID       = process.env.EVA_VOICE_ID ?? '21m00Tcm4TlvDq8ikWAM' // Rachel
 
     if (!ELEVENLABS_API_KEY) {
-      // Fallback: return empty audio — browser TTS will kick in on frontend
-      console.warn('[Voice] ELEVENLABS_API_KEY not set — frontend will use browser TTS fallback')
-      return new Response(new ArrayBuffer(0), {
-        status: 204,
+      // Return empty audio with 204 No Content — frontend will use browser TTS fallback
+      console.warn('[Voice] ELEVENLABS_API_KEY not set — returning empty audio for browser TTS fallback')
+      // Return empty blob that frontend can detect
+      return new Response(new Blob([], { type: 'audio/mpeg' }), {
+        status: 200,
         headers: { 'Content-Type': 'audio/mpeg' },
       })
     }
@@ -54,6 +55,16 @@ export async function POST(req: Request) {
     if (!response.ok) {
       const error = await response.text()
       console.error('[Voice] ElevenLabs error:', error)
+      
+      // Check if error is due to invalid API key — if so, return empty audio for fallback
+      if (error.includes('invalid_api_key') || error.includes('Invalid API key')) {
+        console.warn('[Voice] Invalid ElevenLabs API key — returning empty audio for browser TTS fallback')
+        return new Response(new Blob([], { type: 'audio/mpeg' }), {
+          status: 200,
+          headers: { 'Content-Type': 'audio/mpeg' },
+        })
+      }
+      
       return NextResponse.json({ error: 'TTS failed' }, { status: 500 })
     }
 

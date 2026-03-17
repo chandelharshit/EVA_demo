@@ -20,33 +20,95 @@ export default function LandingPage() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#0a0a0f',
+      background: 'linear-gradient(135deg, #0a0a0f 0%, #1a0f2e 50%, #0f1a2e 100%)',
       display: 'flex',
       flexDirection: 'column',
       fontFamily: "'Sora', 'Inter', sans-serif",
+      position: 'relative',
+      overflow: 'hidden',
     }}>
+      {/* Ambient background lights */}
+      <div style={{
+        position: 'fixed',
+        top: '10%',
+        left: '-200px',
+        width: '600px',
+        height: '600px',
+        background: 'radial-gradient(circle, rgba(96, 165, 250, 0.15), transparent)',
+        borderRadius: '50%',
+        filter: 'blur(100px)',
+        pointerEvents: 'none',
+      }} />
+      <div style={{
+        position: 'fixed',
+        bottom: '10%',
+        right: '-200px',
+        width: '600px',
+        height: '600px',
+        background: 'radial-gradient(circle, rgba(167, 139, 250, 0.15), transparent)',
+        borderRadius: '50%',
+        filter: 'blur(100px)',
+        pointerEvents: 'none',
+      }} />
+
       {/* ── Nav ── */}
       <nav style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'space-between',
         padding: '16px 28px',
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
+        background: 'rgba(15, 15, 25, 0.4)',
+        backdropFilter: 'blur(16px)',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+        position: 'relative',
+        zIndex: 100,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 34, height: 34, borderRadius: '50%',
-            background: 'linear-gradient(135deg, #7c6ff7, #4f46e5)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 14, color: '#fff', fontWeight: 700,
-          }}>E</div>
-          <span style={{ color: '#e2e2f0', fontWeight: 700, fontSize: 18, letterSpacing: 2 }}>EVA</span>
+        {/* Logo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {/* Woman profile SVG logo */}
+          <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            {/* Face profile */}
+            <defs>
+              <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style={{ stopColor: '#60a5fa', stopOpacity: 1 }} />
+                <stop offset="100%" style={{ stopColor: '#a78bfa', stopOpacity: 1 }} />
+              </linearGradient>
+            </defs>
+            {/* Head circle */}
+            <circle cx="18" cy="14" r="8" fill="url(#logoGrad)" />
+            {/* Hair curve */}
+            <path d="M 10 14 Q 10 8 18 7 Q 26 8 26 14" fill="url(#logoGrad)" />
+            {/* Neck */}
+            <rect x="16" y="22" width="4" height="6" fill="url(#logoGrad)" />
+            {/* Shoulder */}
+            <path d="M 12 28 Q 18 30 24 28" fill="url(#logoGrad)" opacity="0.8" />
+          </svg>
+          <span style={{ 
+            color: '#e2e2f0', 
+            fontWeight: 700, 
+            fontSize: 18, 
+            letterSpacing: 1.5,
+            background: 'linear-gradient(135deg, #60a5fa, #a78bfa)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+          }}>
+            EVA AI
+          </span>
         </div>
         <button
           onClick={handleGoogleLogin}
+          className="btn-nav-login"
           style={{
-            padding: '8px 22px', borderRadius: 8,
-            background: 'linear-gradient(135deg, #7c6ff7, #4f46e5)',
-            border: 'none', color: '#fff', fontWeight: 600,
-            fontSize: 14, cursor: 'pointer',
+            padding: '8px 22px', 
+            borderRadius: 8,
+            background: 'rgba(96, 165, 250, 0.15)',
+            border: '1px solid rgba(96, 165, 250, 0.3)',
+            color: '#e2e2f0', 
+            fontWeight: 600,
+            fontSize: 14, 
+            cursor: 'pointer',
+            transition: 'all 0.3s ease',
+            backdropFilter: 'blur(8px)',
           }}>
           Login
         </button>
@@ -54,28 +116,64 @@ export default function LandingPage() {
 
       {/* ── Hero ── */}
       <div style={{
-        flex: 1, display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center',
-        gap: 32, padding: '40px 20px',
+        flex: 1, 
+        display: 'flex', 
+        flexDirection: 'column',
+        alignItems: 'center', 
+        justifyContent: 'center',
+        gap: 32, 
+        padding: '40px 20px',
+        position: 'relative',
+        zIndex: 10,
       }}>
         {/* Glowing avatar */}
         <div style={{ position: 'relative' }}>
+          {/* Outer glow */}
           <div style={{
-            position: 'absolute', inset: -24,
+            position: 'absolute', 
+            inset: -32,
             borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(124,111,247,0.35) 0%, transparent 70%)',
-            animation: 'pulse 3s ease-in-out infinite',
+            background: 'radial-gradient(circle, rgba(96, 165, 250, 0.25), transparent)',
+            animation: 'pulse 4s ease-in-out infinite',
+            filter: 'blur(20px)',
           }}/>
+          
+          {/* Glass card container */}
           <div style={{
-            width: 130, height: 130, borderRadius: '50%',
-            background: 'linear-gradient(145deg, #2d2b6e, #1e1b4b)',
-            border: '2px solid rgba(124,111,247,0.5)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 130, 
+            height: 130, 
+            borderRadius: '50%',
+            background: 'rgba(30, 58, 138, 0.2)',
+            backdropFilter: 'blur(24px)',
+            border: '1.5px solid rgba(96, 165, 250, 0.3)',
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
             position: 'relative',
+            boxShadow: `
+              0 0 40px rgba(96, 165, 250, 0.1),
+              inset 0 1px 2px rgba(255, 255, 255, 0.1),
+              inset 0 -1px 2px rgba(0, 0, 0, 0.3)
+            `,
           }}>
-            <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-              <circle cx="32" cy="22" r="12" fill="rgba(124,111,247,0.6)"/>
-              <ellipse cx="32" cy="54" rx="22" ry="14" fill="rgba(124,111,247,0.4)"/>
+            {/* Woman profile with gradient */}
+            <svg width="80" height="80" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" style={{
+              filter: 'drop-shadow(0 4px 12px rgba(96, 165, 250, 0.2))',
+            }}>
+              <defs>
+                <linearGradient id="heroGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" style={{ stopColor: '#60a5fa', stopOpacity: 1 }} />
+                  <stop offset="100%" style={{ stopColor: '#a78bfa', stopOpacity: 1 }} />
+                </linearGradient>
+              </defs>
+              {/* Face outline */}
+              <circle cx="20" cy="12" r="7" fill="none" stroke="url(#heroGrad)" strokeWidth="1.5" />
+              {/* Hair */}
+              <path d="M 13 12 Q 13 6 20 5 Q 27 6 27 12" fill="url(#heroGrad)" opacity="0.9" />
+              {/* Face fill */}
+              <circle cx="20" cy="12" r="6.5" fill="url(#heroGrad)" opacity="0.7" />
+              {/* Shoulders */}
+              <path d="M 10 30 Q 20 32 30 30 L 28 24 Q 20 26 12 24 Z" fill="url(#heroGrad)" opacity="0.6" />
             </svg>
           </div>
         </div>
@@ -84,10 +182,10 @@ export default function LandingPage() {
         <div style={{ textAlign: 'center' }}>
           <h1 style={{
             fontSize: 56, fontWeight: 800, letterSpacing: 8,
-            background: 'linear-gradient(135deg, #a5b4fc, #7c6ff7, #4f46e5)',
+            background: 'linear-gradient(135deg, #60a5fa, #a78bfa, #c084fc)',
             WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
             margin: 0,
-          }}>EVA</h1>
+          }}>EVA AI</h1>
           <p style={{ color: '#9494b8', fontSize: 18, marginTop: 12, fontWeight: 300 }}>
             Your Everyday Virtual Assistant
           </p>
@@ -98,15 +196,16 @@ export default function LandingPage() {
           <button
             onClick={handleGoogleLogin}
             disabled={loading}
+            className="btn-cta-primary"
             style={{
               width: '100%', padding: '14px 24px',
               borderRadius: 12,
-              background: loading ? 'rgba(255,255,255,0.05)' : '#fff',
-              border: '1px solid rgba(255,255,255,0.15)',
-              color: '#111', fontWeight: 600, fontSize: 16,
+              background: loading ? 'rgba(96,165,250,0.1)' : 'linear-gradient(135deg, #60a5fa, #a78bfa)',
+              border: loading ? '1px solid rgba(96,165,250,0.3)' : 'none',
+              color: '#fff', fontWeight: 600, fontSize: 16,
               cursor: loading ? 'not-allowed' : 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
-              transition: 'all 0.2s',
+              transition: 'all 0.3s ease',
             }}>
             {/* Google "G" logo */}
             <svg width="20" height="20" viewBox="0 0 24 24">
@@ -124,6 +223,7 @@ export default function LandingPage() {
               // REAL: supabase.auth.signInWithOAuth({ provider: 'azure' })
               console.log('[MOCK] Outlook OAuth — not implemented yet')
             }}
+            className="btn-cta-secondary"
             style={{
               width: '100%', padding: '14px 24px',
               borderRadius: 12,
@@ -132,6 +232,7 @@ export default function LandingPage() {
               color: '#9494b8', fontWeight: 500, fontSize: 15,
               cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
+              transition: 'all 0.3s ease',
             }}>
             <span style={{ fontSize: 20 }}>📧</span>
             Continue with Outlook
@@ -147,6 +248,37 @@ export default function LandingPage() {
         @keyframes pulse {
           0%, 100% { opacity: 0.6; transform: scale(1); }
           50%       { opacity: 1;   transform: scale(1.08); }
+        }
+
+        .btn-nav-login:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 24px rgba(96, 165, 250, 0.3);
+        }
+
+        .btn-nav-login:active {
+          transform: translateY(0);
+        }
+
+        .btn-cta-primary:hover:not(:disabled) {
+          transform: translateY(-3px);
+          box-shadow: 0 12px 32px rgba(96, 165, 250, 0.4);
+          background: linear-gradient(135deg, #7bb3ff, #b99dff);
+        }
+
+        .btn-cta-primary:active:not(:disabled) {
+          transform: translateY(-1px);
+        }
+
+        .btn-cta-secondary:hover {
+          background: rgba(255,255,255,0.08);
+          border-color: rgba(255,255,255,0.2);
+          color: #c5c5d9;
+          transform: translateY(-2px);
+          box-shadow: 0 8px 20px rgba(255,255,255,0.05);
+        }
+
+        .btn-cta-secondary:active {
+          transform: translateY(0);
         }
       `}</style>
     </div>

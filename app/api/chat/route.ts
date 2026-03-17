@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { evaOrchestrator, mealAgent, taskAgent, misAgent } from '../../../lib/agents'
 import { getCalendarService } from '../../../lib/calendar'
 import { scrubPII, searchMemories, storeMemory, getTodayName } from '../../../lib/utils'
+import { supabaseServer } from '../../../lib/supabase'
 import {
   MOCK_USER, MOCK_HEALTH_PROFILE, MOCK_WORK_PROFILE,
   MOCK_NOTIFICATION_PROFILE, MOCK_PANTRY, MOCK_MEAL_PREFERENCES
@@ -12,14 +13,49 @@ export async function POST(req: Request) {
     const { message, userId = 'priya_001', conversationHistory = [], privacyMode = false } = await req.json()
 
     // ── 1. Load user context ────────────────────────────────────────────────
-    // REAL: fetch all from Supabase in parallel
-    // REAL: const [user, healthProfile, workProfile, notifProfile, pantry, likedMeals] = await Promise.all([...])
+    // Fetch all user data from Supabase in parallel
+    const [
+      { data: healthProfileRes },
+      { data: workProfileRes },
+      { data: notifProfileRes },
+      { data: pantryRes },
+      { data: likedMealsRes }
+    ] = await Promise.all([
+      supabaseServer
+        .from('user_health_profile')
+        .select('*')
+        .eq('user_id', userId)
+        .single()
+        .catch(() => ({ data: MOCK_HEALTH_PROFILE })),
+      supabaseServer
+        .from('user_work_profile')
+        .select('*')
+        .eq('user_id', userId)
+        .single()
+        .catch(() => ({ data: MOCK_WORK_PROFILE })),
+      supabaseServer
+        .from('user_notification_profile')
+        .select('*')
+        .eq('user_id', userId)
+        .single()
+        .catch(() => ({ data: MOCK_NOTIFICATION_PROFILE })),
+      supabaseServer
+        .from('pantry_items')
+        .select('*')
+        .eq('user_id', userId)
+        .catch(() => ({ data: MOCK_PANTRY })),
+      supabaseServer
+        .from('meal_preferences')
+        .select('*')
+        .eq('user_id', userId)
+        .catch(() => ({ data: MOCK_MEAL_PREFERENCES }))
+    ])
 
-    const healthProfile  = MOCK_HEALTH_PROFILE
-    const workProfile    = MOCK_WORK_PROFILE
-    const notifProfile   = MOCK_NOTIFICATION_PROFILE
-    const pantry         = MOCK_PANTRY
-    const likedMeals     = MOCK_MEAL_PREFERENCES
+    const healthProfile  = healthProfileRes || MOCK_HEALTH_PROFILE
+    const workProfile    = workProfileRes || MOCK_WORK_PROFILE
+    const notifProfile   = notifProfileRes || MOCK_NOTIFICATION_PROFILE
+    const pantry         = pantryRes || MOCK_PANTRY
+    const likedMeals     = likedMealsRes || MOCK_MEAL_PREFERENCES
 
     // ── 2. Scrub PII from incoming message ──────────────────────────────────
     const cleanMessage = scrubPII(message, healthProfile)

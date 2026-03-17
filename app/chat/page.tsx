@@ -283,7 +283,7 @@ export default function ChatPage() {
                 borderRadius: 10, padding: '10px 12px',
                 fontSize: 12, color: '#666', lineHeight: 1.5,
               }}>
-                {m.content.slice(0, 80)}{m.content.length > 80 ? '…' : ''}
+                {(m.content ?? '').slice(0, 80)}{(m.content?.length ?? 0) > 80 ? '…' : ''}
               </div>
             ))}
           </div>

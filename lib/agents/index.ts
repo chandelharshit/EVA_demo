@@ -3,77 +3,38 @@ import type {
   PantryItem, MealPreference, Memory, CalendarEvent, AgentName
 } from '../../types'
 import { extractContent, isQuietHours, getTodayName } from '../utils'
+import { ChatGoogleGenerativeAI } from '@langchain/google-genai'
+import { SystemMessage, HumanMessage, AIMessage } from '@langchain/core/messages'
 
 // ─── Shared LLM caller ───────────────────────────────────────────────────────
-// REAL: replace with actual @langchain/google-genai ChatGoogleGenerativeAI call
-// REAL: import { ChatGoogleGenerativeAI } from '@langchain/google-genai'
-// REAL: import { SystemMessage, HumanMessage } from '@langchain/core/messages'
+// Call Gemini 1.5 Flash with system prompt + message history
 
 async function callLLM(systemPrompt: string, messages: any[]): Promise<string> {
-  // MOCK: return canned responses based on keywords
-  console.log('[MOCK] callLLM — would call Gemini 1.5 Flash')
-
-  const lastMsg = messages[messages.length - 1]?.content?.toLowerCase() ?? ''
-
-  if (lastMsg.includes('cook') || lastMsg.includes('dinner') || lastMsg.includes('meal') || lastMsg.includes('food')) {
-    return `Based on your pantry and preferences, I'd suggest **Palak Paneer** tonight!
-
-Here's what you have:
-- Spinach ✅ (200g available)
-- Paneer ✅ (250g available)
-- Onion ✅ (4 pieces)
-- Tomato ✅ (3 pieces)
-
-This takes about 25 minutes and is Aarav-safe (no dairy in the gravy base). Would you like to cook this tonight? I'll update your pantry automatically. 🍲`
+  if (!process.env.GOOGLE_GEMINI_API_KEY) {
+    throw new Error('GOOGLE_GEMINI_API_KEY is not set')
   }
 
-  if (lastMsg.includes('meeting') || lastMsg.includes('schedule') || lastMsg.includes('standup') || lastMsg.includes('calendar')) {
-    return `Here's your schedule for today:
-
-**10:00 AM** — Sprint Standup (30 min) with Raj, Neha
-**3:00 PM** — Product Review (1 hr) with PM Lead
-
-⚠️ Note: You have a gap between 10:30 and 3:00 — that's your deep work window. I'd protect it.
-
-Thursday tends to be heavy for you. Want me to keep dinner simple tonight?`
-  }
-
-  if (lastMsg.includes('remind') || lastMsg.includes('alert') || lastMsg.includes('notification')) {
-    return `Got it! I'll set a reminder for you. 
-
-📌 **School pickup — Aarav** at 3:30 PM daily (Mon–Fri) is already active.
-
-Want me to add any new reminder? Just tell me what and when.`
-  }
-
-  if (lastMsg.includes('mom') || lastMsg.includes('minutes')) {
-    return `I'll generate the MOM for your Sprint Standup. 
-
-Can you quickly tell me the key discussion points and any action items from today's standup?`
-  }
-
-  return `I'm EVA, your AI life-load assistant! I can help you with:
-- 🍽️ **Meals** — suggest dinner, check pantry, plan the week
-- 📋 **Tasks** — schedule, MOM generation, productivity tips  
-- 🔔 **Alerts** — reminders, events, quiet hours
-
-What would you like help with today?`
-
-  /*
-  REAL IMPLEMENTATION:
   const llm = new ChatGoogleGenerativeAI({
     modelName: 'gemini-1.5-flash',
     apiKey: process.env.GOOGLE_GEMINI_API_KEY,
   })
-  const response = await llm.invoke([
+
+  const formattedMessages = [
     new SystemMessage(systemPrompt),
-    ...messages.map(m => m.role === 'user'
-      ? new HumanMessage(m.content)
-      : new AIMessage(m.content)
-    )
-  ])
-  return extractContent(response.content)
-  */
+    ...messages.map(m =>
+      m.role === 'user'
+        ? new HumanMessage(m.content)
+        : new AIMessage(m.content)
+    ),
+  ]
+
+  try {
+    const response = await llm.invoke(formattedMessages)
+    return extractContent(response.content)
+  } catch (error) {
+    console.error('Error calling Gemini API:', error)
+    throw error
+  }
 }
 
 // ─── EVA — Orchestrator ───────────────────────────────────────────────────────
@@ -337,6 +298,8 @@ For low stock:
 }
 
 // ─── Onboarding Agent ─────────────────────────────────────────────────────────
+// REPLACE ONLY THIS FUNCTION in lib/agents/index.ts
+// (keep everything else above and below it unchanged)
 
 export async function onboardingAgent(
   step: string,
@@ -365,41 +328,41 @@ export async function onboardingAgent(
   }
 
   const questions = questionSets[step] ?? []
-  const questionCount = messages.filter(m => m.role === 'assistant').length
 
-  // If we've asked all questions, extract structured data
-  if (questionCount >= questions.length) {
-    const allAnswers = messages.map(m => `${m.role}: ${m.content}`).join('\n')
+  // FIX 1: Count only REAL user answers (non-empty user messages).
+  // Previously counting all assistant messages caused the agent to think
+  // questions were already asked when switching steps, cascading all questions at once.
+  const userAnswerCount = messages.filter(
+    m => m.role === 'user' && m.content && m.content.trim() !== ''
+  ).length
 
-    const extractPrompt = `Extract structured JSON from this onboarding conversation for step ${step}.
-    
-Conversation:
-${allAnswers}
+  // FIX 2: Never fire stepComplete when there are no real user answers yet.
+  // This prevents the init call (message: '') from triggering completion.
+  if (userAnswerCount === 0) {
+    return {
+      response:     questions[0] ?? "Let's get started!",
+      stepComplete: false,
+    }
+  }
 
-Return ONLY valid JSON matching this shape for ${step}:
-${step === 'MEAL' ? '{ family_members: [], health_conditions: [], cooking_time_weekday: number, cuisine_preferences: [], diet_type: string, household_size: number }' : ''}
-${step === 'TASK' ? '{ work_hours_start: string, work_hours_end: string, recurring_meetings: [], productivity_drains: [], task_preference: string }' : ''}
-${step === 'MIS'  ? '{ quiet_hours_start: string, quiet_hours_end: string, alert_style: string, recurring_events: [] }' : ''}
-
-REAL: send this to Gemini and parse the JSON response
-MOCK: return empty structure`
-
-    // REAL: call Gemini here and parse JSON
+  // All questions answered — step is complete
+  if (userAnswerCount >= questions.length) {
+    // REAL: call Gemini to extract structured JSON from the conversation
     // MOCK: return empty extracted data
     const extractedData = {}
 
     return {
-      response: `Great, I've noted everything! Let me hand you over to the next assistant.`,
+      response:     `Great, I've noted everything! Let me hand you over to the next assistant.`,
       extractedData,
       stepComplete: true,
     }
   }
 
-  // Ask next question
-  const nextQuestion = questions[questionCount] ?? "Thank you for sharing that!"
+  // Ask the next unanswered question
+  const nextQuestion = questions[userAnswerCount] ?? "Thank you for sharing that!"
 
   return {
-    response: nextQuestion,
+    response:     nextQuestion,
     stepComplete: false,
   }
 }

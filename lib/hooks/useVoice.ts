@@ -93,6 +93,14 @@ export function useVoice(onTranscriptComplete?: (text: string) => void): UseVoic
       if (!res.ok) throw new Error('TTS API failed')
 
       const audioBlob = await res.blob()
+      
+      // If blob is empty (fallback case when API key not configured), use browser TTS
+      if (audioBlob.size === 0) {
+        console.warn('[Voice] Empty audio blob received, using browser TTS fallback')
+        fallbackSpeak(text)
+        return
+      }
+      
       const audioUrl  = URL.createObjectURL(audioBlob)
       const audio     = new Audio(audioUrl)
 

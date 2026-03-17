@@ -1,5 +1,5 @@
 -- ============================================================
--- AILA — Full Database Schema
+-- EVA — Full Database Schema
 -- Run this in Supabase SQL Editor
 -- ============================================================
 
