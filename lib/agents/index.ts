@@ -4,7 +4,7 @@ import type {
 } from '../../types'
 import { extractContent, isQuietHours, getTodayName } from '../utils'
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai'
-import { SystemMessage, HumanMessage, AIMessage } from '@langchain/core/messages'
+import { HumanMessage, AIMessage } from '@langchain/core/messages'
 
 // ─── Shared LLM caller ───────────────────────────────────────────────────────
 // Call Gemini 1.5 Flash with system prompt + message history
@@ -19,17 +19,20 @@ async function callLLM(systemPrompt: string, messages: any[]): Promise<string> {
     apiKey: process.env.GOOGLE_GEMINI_API_KEY,
   })
 
-  const formattedMessages = [
-    new SystemMessage(systemPrompt),
-    ...messages.map(m =>
-      m.role === 'user'
-        ? new HumanMessage(m.content)
-        : new AIMessage(m.content)
-    ),
-  ]
+  // Format messages for Gemini - add system prompt to first user message
+  const formattedMessages = messages.map((m, idx) => {
+    const content = idx === 0 
+      ? `${systemPrompt}\n\n${m.content}`
+      : m.content
+    
+    return m.role === 'user'
+      ? new HumanMessage(content)
+      : new AIMessage(content)
+  })
 
   try {
-    const response = await llm.invoke(formattedMessages)
+    // Cast to any to bypass type checking issues with LangChain version compatibility
+    const response = await (llm as any).invoke(formattedMessages as any)
     return extractContent(response.content)
   } catch (error) {
     console.error('Error calling Gemini API:', error)
